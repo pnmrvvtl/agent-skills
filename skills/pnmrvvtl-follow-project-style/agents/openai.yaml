@@ -1,0 +1,4 @@
+interface:
+  display_name: "Follow Project Style"
+  short_description: "Match existing app architecture and style"
+  default_prompt: "Use $pnmrvvtl-follow-project-style to implement this change in the same style as the existing project."

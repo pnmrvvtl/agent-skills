@@ -1,0 +1,4 @@
+interface:
+  display_name: "Feature Intake"
+  short_description: "Turn raw feature text into strict implementation docs."
+  default_prompt: "Use pnmrvvtl-feature-intake to convert this feature description into per-feature instructions, design handoff, stories, and progress protocol."

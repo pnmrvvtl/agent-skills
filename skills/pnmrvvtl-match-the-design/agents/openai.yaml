@@ -1,0 +1,4 @@
+interface:
+  display_name: "Match The Design"
+  short_description: "Extract a spec from the supplied design, build to it, prove the match"
+  default_prompt: "Use $pnmrvvtl-match-the-design to implement this design exactly: state what the source can and cannot express, extract every value into a committed spec file before writing code, declare a tolerance budget, then diff the built result against the spec and report every delta."

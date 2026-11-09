@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Design spec",
+  "description": "Machine-readable contract extracted from a design source. Written before implementation, read by both the implementation and the parity check.",
+  "type": "object",
+  "required": ["feature", "source", "tolerances", "elements"],
+  "properties": {
+    "feature": { "type": "string" },
+    "source": {
+      "type": "object",
+      "required": ["kind", "ceiling"],
+      "properties": {
+        "kind": { "enum": ["figma", "vector-pdf", "raster-pdf", "screenshots"] },
+        "ref": {
+          "type": "string",
+          "description": "Figma file key + node id, or the path of the supplied file."
+        },
+        "artboard": {
+          "type": "object",
+          "description": "Page or frame size in the spec's unit. Never assume A4.",
+          "properties": {
+            "width": { "type": "number" },
+            "height": { "type": "number" },
+            "unit": { "enum": ["px", "pt"] }
+          }
+        },
+        "ceiling": {
+          "type": "array",
+          "description": "Properties this source cannot express, stated at Phase 0.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "font": {
+      "type": "object",
+      "description": "Phase 3 decision. Present whenever the design font is not the shipped font.",
+      "properties": {
+        "design": { "type": "string" },
+        "shipped": { "type": "string" },
+        "strategy": { "enum": ["embedded", "metric-match"] },
+        "note": { "type": "string" }
+      }
+    },
+    "tolerances": {
+      "type": "object",
+      "description": "Phase 4 budget. A delta outside these is a failure, not 'close enough'.",
+      "properties": {
+        "position": { "type": "number", "default": 0.5 },
+        "size": { "type": "number", "default": 0.5 },
+        "spacing": { "type": "number", "default": 0.5 },
+        "radius": { "type": "number", "default": 0.5 },
+        "opacity": { "type": "number", "default": 0.01 },
+        "shadow": { "type": "number", "default": 0.5 },
+        "durationMs": { "type": "number", "default": 10 },
+        "colour": { "const": "exact" },
+        "fontSize": { "const": "exact" }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "description": "Things the design shows that cannot be produced, with the fallback chosen. Reproduced verbatim in the final report.",
+      "items": {
+        "type": "object",
+        "required": ["what", "reason", "fallback"],
+        "properties": {
+          "what": { "type": "string" },
+          "reason": { "type": "string" },
+          "fallback": { "type": "string" }
+        }
+      }
+    },
+    "elements": {
+      "type": "object",
+      "description": "Keyed by a stable element name. Each state of an element gets its own entry under 'states'.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "box": {
+            "type": "object",
+            "properties": {
+              "x": { "$ref": "#/$defs/value" },
+              "y": { "$ref": "#/$defs/value" },
+              "width": { "$ref": "#/$defs/value" },
+              "height": { "$ref": "#/$defs/value" }
+            }
+          },
+          "padding": {
+            "type": "object",
+            "properties": {
+              "top": { "$ref": "#/$defs/value" },
+              "right": { "$ref": "#/$defs/value" },
+              "bottom": { "$ref": "#/$defs/value" },
+              "left": { "$ref": "#/$defs/value" }
+            }
+          },
+          "gap": { "$ref": "#/$defs/value" },
+          "radius": {
+            "description": "A single number, or four for per-corner radii.",
+            "oneOf": [
+              { "$ref": "#/$defs/value" },
+              { "type": "array", "items": { "$ref": "#/$defs/value" }, "minItems": 4, "maxItems": 4 }
+            ]
+          },
+          "fill": { "$ref": "#/$defs/colour" },
+          "stroke": {
+            "type": "object",
+            "properties": {
+              "colour": { "$ref": "#/$defs/colour" },
+              "weight": { "$ref": "#/$defs/value" },
+              "align": { "enum": ["inside", "outside", "center"] }
+            }
+          },
+          "opacity": { "$ref": "#/$defs/value" },
+          "shadows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "enum": ["drop", "inner"] },
+                "colour": { "$ref": "#/$defs/colour" },
+                "offsetX": { "$ref": "#/$defs/value" },
+                "offsetY": { "$ref": "#/$defs/value" },
+                "blur": { "$ref": "#/$defs/value" },
+                "spread": { "$ref": "#/$defs/value" }
+              }
+            }
+          },
+          "text": {
+            "type": "object",
+            "properties": {
+              "content": { "type": "string" },
+              "family": { "type": "string" },
+              "size": { "$ref": "#/$defs/value" },
+              "weight": { "$ref": "#/$defs/value" },
+              "lineHeight": { "$ref": "#/$defs/value" },
+              "letterSpacing": { "$ref": "#/$defs/value" },
+              "align": { "type": "string" },
+              "transform": { "type": "string" },
+              "colour": { "$ref": "#/$defs/colour" }
+            }
+          },
+          "token": {
+            "type": "string",
+            "description": "Project design token or CSS variable this value maps onto. A raw literal duplicating an existing token is a defect."
+          },
+          "transition": {
+            "type": "object",
+            "properties": {
+              "property": { "type": "string" },
+              "durationMs": { "$ref": "#/$defs/value" },
+              "easing": { "type": "string" }
+            }
+          },
+          "states": {
+            "type": "object",
+            "description": "hover, active, focus, disabled, selected — each holding any of the properties above.",
+            "additionalProperties": { "type": "object" }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "value": {
+      "type": "object",
+      "required": ["v", "source"],
+      "properties": {
+        "v": { "type": ["number", "string"] },
+        "source": {
+          "enum": ["figma", "measured", "assumed"],
+          "description": "'assumed' values are listed in the final report."
+        },
+        "tolerance": {
+          "type": "number",
+          "description": "Achieved tolerance for a measured value."
+        }
+      }
+    },
+    "colour": {
+      "type": "object",
+      "required": ["v", "source"],
+      "properties": {
+        "v": { "type": "string", "description": "#RRGGBB or rgba()." },
+        "alpha": { "type": "number" },
+        "source": { "enum": ["figma", "measured", "assumed"] }
+      }
+    }
+  }
+}

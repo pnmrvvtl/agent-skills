@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gated Refactor"
+  short_description: "Run a large refactor as shippable phases, each ending with one more ratcheted gate"
+  default_prompt: "Use $pnmrvvtl-gated-refactor for this refactor: start with phase 0 — get the tests green, work out how the build is verified, capture every baseline as JSON under REFACTOR/baselines/, and write PLAN.md, GATES.md, PROGRESS.md and a file per phase. Change nothing else. Then move one phase at a time, each ending with a working application and one more gate set at the level actually reached — and prove every gate red-then-green before reporting it as working."

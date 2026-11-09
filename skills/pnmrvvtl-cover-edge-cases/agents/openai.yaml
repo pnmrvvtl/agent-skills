@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cover Edge Cases"
+  short_description: "Cross dimensions, check invariants in every state, prove every edge case"
+  default_prompt: "Use $pnmrvvtl-cover-edge-cases for this change: map the surface into dimensions, cross every item behaviour with every render path, decide each row from spec, project or platform, check the universal invariants in every state with a sweep in the real runtime, look at every screenshot, and falsify the sweep."

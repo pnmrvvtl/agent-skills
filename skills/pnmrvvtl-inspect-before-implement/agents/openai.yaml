@@ -1,0 +1,4 @@
+interface:
+  display_name: "Inspect Before Implement"
+  short_description: "Inspect first, clarify before coding"
+  default_prompt: "Use $pnmrvvtl-inspect-before-implement to inspect the project first and tell me whether the task is clear before making code changes."

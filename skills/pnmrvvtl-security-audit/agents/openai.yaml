@@ -1,0 +1,4 @@
+interface:
+  display_name: "Security Audit"
+  short_description: "Read-only OWASP security audit of a project or feature, verified findings as markdown"
+  default_prompt: "Use $pnmrvvtl-security-audit on this scope: ask the intake questions once, research the current OWASP lists and stack advisories, build a threat model, run the available scanners, review source to sink per category, validate every candidate through the gates, and write SUMMARY, FINDINGS, THREAT-MODEL, DEPENDENCIES, COVERAGE and SOURCES without editing any project code."

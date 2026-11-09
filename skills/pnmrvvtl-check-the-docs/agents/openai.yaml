@@ -1,0 +1,4 @@
+interface:
+  display_name: "Check The Docs"
+  short_description: "Ground the task in version-pinned facts, not model memory"
+  default_prompt: "Use $pnmrvvtl-check-the-docs to ground this task: resolve the installed versions from the lockfile, write down at most five questions that would change the code, answer each from the cheapest reliable source, and return a short sourced brief instead of a documentation dump."

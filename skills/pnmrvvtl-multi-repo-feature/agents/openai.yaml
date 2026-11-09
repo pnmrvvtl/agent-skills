@@ -1,0 +1,4 @@
+interface:
+  display_name: "Multi-repo Feature"
+  short_description: "Orchestrate one large feature across repos with delegated implementers and verified gates"
+  default_prompt: "Use $pnmrvvtl-multi-repo-feature for this build: you are the orchestrator — write the knowledge base (README, PROGRESS, DECISIONS, KNOWLEDGE, LESSONS, GATES, API-SPEC) and phase 0 baselines first, then send one measured packet per unit to an implementer under the watchdog. Never write feature code yourself; re-run every gate and re-measure every claim before believing it; keep design assets verbatim and park contradicting states with their measured numbers."

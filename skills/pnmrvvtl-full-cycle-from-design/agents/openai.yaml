@@ -1,0 +1,4 @@
+interface:
+  display_name: "Full Cycle From Design"
+  short_description: "Clarify, extract the design spec, implement, prove behaviour and pixel match"
+  default_prompt: "Use $pnmrvvtl-full-cycle-from-design for this change: clarify first, extract the supplied design into a committed spec file before writing code, implement from that spec in the project's own style, then prove both behaviour and pixel match. Do not skip a phase."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify For Real"
+  short_description: "Prove a change works in the real runtime, then falsify it"
+  default_prompt: "Use $pnmrvvtl-verify-for-real to prove this change actually works in the real runtime: sample every actor the user can see, compare against the reference implementation when the requirement is parity, and re-run with each mechanism broken in turn."

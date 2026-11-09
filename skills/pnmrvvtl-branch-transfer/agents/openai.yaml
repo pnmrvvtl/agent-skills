@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prod ↔ Main Transfer"
+  short_description: "Transfer a feature between the prod and main lines, either direction"
+  default_prompt: "Use $pnmrvvtl-branch-transfer to transfer this feature between the prod and main lines: establish the direction, cut the target branch from an updated base, survey what the target line is missing before porting, and validate with the target's own tooling."

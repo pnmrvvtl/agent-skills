@@ -1,0 +1,4 @@
+interface:
+  display_name: "Progress Pulse"
+  short_description: "One-line progress reports: time, step, n/N, overall %, blockers, next"
+  default_prompt: "Use $pnmrvvtl-progress-pulse while doing this work: state the plan and its step count, then emit a one-line pulse (HH:MM === doing === n/N === all P% === blockers === next) on every significant change and append it to PROGRESS.log."

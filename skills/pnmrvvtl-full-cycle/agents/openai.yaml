@@ -1,0 +1,4 @@
+interface:
+  display_name: "Full Cycle"
+  short_description: "Clarify, implement in the project's style, prove in the real runtime"
+  default_prompt: "Use $pnmrvvtl-full-cycle for this change: clarify before writing any code, implement the way this project already works, then prove it in the real runtime and falsify the proof. Do not skip a phase."
