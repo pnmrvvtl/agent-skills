@@ -15,7 +15,7 @@ All skill names use the `pnmrvvtl-` namespace to avoid collisions with other col
 | `pnmrvvtl-follow-project-style` | Reuse the consuming project's architecture, components and conventions. |
 | `pnmrvvtl-cover-edge-cases` | Define expected behavior across missing, invalid, overflowing and failed states. |
 | `pnmrvvtl-verify-for-real` | Verify behavior in the real runtime and prove the check detects a broken mechanism. |
-| `pnmrvvtl-match-the-design` | Extract a design specification and measure the implementation against it. |
+| `pnmrvvtl-match-the-design` | Normalize any design source (Figma API, Figma plugin export, PDF, screenshots) into a node tree, map every node to the page, and let a gate decide on coverage, geometry, style and per-region pixels. |
 | `pnmrvvtl-full-cycle` | Run inspection, documentation, edge-case, implementation and verification phases. |
 | `pnmrvvtl-full-cycle-from-design` | Run the complete workflow with design extraction and visual comparison. |
 | `pnmrvvtl-feature-intake` | Turn feature descriptions into implementation notes, design handoffs and stories. |
@@ -86,7 +86,8 @@ paths from its `SKILL.md` location rather than the consuming project's working d
 Instruction-only workflows need a compatible agent. Bundled JavaScript helpers use Node.js; shell helpers
 use Bash and their documented command-line tools. The sandbox workflow needs Docker with Linux containers
 and an authenticated supported agent CLI. Browser verification needs a real browser and the target runtime.
-Figma API access uses `FIGMA_TOKEN`; Context7 access optionally uses `CONTEXT7_API_KEY`. Keep credentials in
+Figma API access uses `FIGMA_TOKEN`; a Figma plugin export, a PDF or images need no token. The design
+parity gate resolves Playwright from the project it runs in. Context7 access optionally uses `CONTEXT7_API_KEY`. Keep credentials in
 user-level environment configuration, and never commit them. The security-audit skill documents optional
 scanners and records any checks that could not run.
 

@@ -4,6 +4,10 @@ The rule: **assert computed values, not only pixels.** A screenshot diff tells y
 something is off. `getComputedStyle` tells you *what*, and a failing test that names
 `border-radius: 6px vs 8px` is worth ten red pixel maps.
 
+`scripts/verify.mjs` already does the geometry, the solid fills, radii, opacity, the text metrics and
+the per-region pixels for every mapped node. This file covers what it lists as `MANUAL` (effects,
+strokes, gradients), the states and transitions, and how to read its failures.
+
 Use the project's existing harness — Playwright, Cypress, vitest browser mode. Do not install a
 framework to run a probe.
 
@@ -94,11 +98,21 @@ would have passed.
 Disable animations globally *only* for screenshot diffs, never for the transition assertions —
 otherwise the test proves the animation is off.
 
-## Screenshot diff as a backstop
+## The pixel stage
 
-Run it after the value assertions, against the Figma-rendered PNG at the same scale. Mask
-genuinely dynamic regions — timestamps, avatars, anything seeded from real data. A diff over an
-unmasked clock fails forever and gets ignored, which is worse than no diff at all.
+`verify.mjs` compares the root's screenshot with the reference at the reference's scale:
+
+- it first aligns the two within one CSS pixel, so the regions report wrong shapes and missing ink;
+  placement is the geometry check's job and runs with exact numbers
+- it splits the root into 16px regions and fails any region with more than 10% differing pixels, so
+  a wrong icon cannot hide inside a large, mostly correct component
+- text boxes are masked by default, because the design tool and the browser rasterise text
+  differently; text is held by its metrics instead
+- `compare.png` shows design | page | differences side by side, failing regions outlined
+
+Mask genuinely dynamic regions (timestamps, avatars, photos seeded from real data) with a `masks`
+entry and its reason. Never mask to make a real difference go away, and never raise `cellMax` to pass;
+a residual that is real and understood gets a named override with its measured number.
 
 ## Responsive
 

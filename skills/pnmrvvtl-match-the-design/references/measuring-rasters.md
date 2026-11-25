@@ -85,5 +85,16 @@ colour.
 
 ## Recording
 
-Every value from this file goes into the spec as `"source": "measured"` with the tolerance
-achieved. Do not launder a measured number into the spec as if it were exact.
+Start the tree with `scripts/extract.mjs --from raster --image <png> --scale <image px per CSS px>`.
+It holds only the root and the reference image; the per-region pixel stage then covers the whole
+picture. Append each element you measure to `nodes` with `"source": "measured"`, its box relative to
+the root, and `"required": true` when it puts ink on the screen, so the gate also checks its geometry
+and colour:
+
+```json
+{ "id": "m1", "name": "icon", "type": "VECTOR", "parent": "root", "x": 16, "y": 15, "width": 20, "height": 22,
+  "visible": true, "required": true, "source": "measured", "fill": "rgba(53, 53, 53, 1)" }
+```
+
+Raise `tolerance.px` to the measurement's achieved tolerance, and say so in the report. Do not launder a
+measured number into the tree as if it were exact.

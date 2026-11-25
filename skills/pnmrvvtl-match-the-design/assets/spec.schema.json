@@ -1,188 +1,142 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Design spec",
-  "description": "Machine-readable contract extracted from a design source. Written before implementation, read by both the implementation and the parity check.",
+  "title": "Design parity spec",
+  "description": "Maps a normalized design tree (scripts/extract.mjs) onto a page, for scripts/verify.mjs. Written before implementation and committed as design/<feature>.spec.json. Every exception it grants carries a reason, and the gate prints them all.",
   "type": "object",
-  "required": ["feature", "source", "tolerances", "elements"],
+  "required": ["tree", "rootSelector", "nodes"],
+  "$defs": {
+    "nodes": {
+      "type": "object",
+      "description": "Keyed by design node id. Every node the tree marks required must appear here, mapped or n/a.",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string", "description": "CSS selector, resolved inside the root. ':scope' is the root; 'document:<css>' resolves from the document." },
+          {
+            "type": "object",
+            "required": ["selector"],
+            "properties": {
+              "selector": { "type": "string" },
+              "skip": {
+                "type": "object",
+                "description": "Checks not run for this node, each with its reason: geometry, fill, radius, opacity, fontSize, fontWeight, lineHeight, letterSpacing.",
+                "additionalProperties": { "type": "string", "minLength": 1 }
+              },
+              "expect": {
+                "type": "object",
+                "description": "Values the page must have instead of the design's, e.g. a calibrated font weight, each with its reason.",
+                "additionalProperties": {
+                  "type": "object",
+                  "required": ["v", "reason"],
+                  "properties": { "v": {}, "reason": { "type": "string", "minLength": 1 } }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["na"],
+            "properties": { "na": { "type": "string", "minLength": 1, "description": "Why this design node has no element on the page." } }
+          }
+        ]
+      }
+    },
+    "steps": {
+      "type": "array",
+      "description": "Run after the root is scrolled into view, before measuring.",
+      "items": {
+        "type": "object",
+        "minProperties": 1,
+        "maxProperties": 1,
+        "properties": {
+          "hover": { "type": "string" },
+          "click": { "type": "string" },
+          "press": { "type": "string", "description": "Hover, then hold the mouse button down." },
+          "focus": { "type": "string" },
+          "scroll": { "type": "string" },
+          "style": { "type": "string", "description": "CSS added to the page, e.g. to hide a live clock, or to break the page on purpose for a falsification run." },
+          "wait": { "type": "number" }
+        }
+      }
+    },
+    "masks": {
+      "type": "array",
+      "description": "Regions left out of the pixel stage, each with its reason. Text nodes are masked by default (maskText).",
+      "items": {
+        "type": "object",
+        "required": ["reason"],
+        "properties": {
+          "node": { "type": "string" },
+          "rect": {
+            "type": "object",
+            "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "width": { "type": "number" }, "height": { "type": "number" } }
+          },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
   "properties": {
     "feature": { "type": "string" },
-    "source": {
+    "tree": { "type": "string", "description": "Path of the tree, relative to this file." },
+    "url": { "type": "string" },
+    "viewport": {
       "type": "object",
-      "required": ["kind", "ceiling"],
+      "properties": { "width": { "type": "number" }, "height": { "type": "number" } }
+    },
+    "rootSelector": { "type": "string", "description": "The element that corresponds to the tree's root." },
+    "nodes": { "$ref": "#/$defs/nodes" },
+    "before": { "$ref": "#/$defs/steps" },
+    "settleMs": { "type": "number", "default": 300 },
+    "masks": { "$ref": "#/$defs/masks" },
+    "maskText": { "type": "boolean", "default": true },
+    "pixels": { "type": "boolean", "default": true, "description": "false only when the source has no reference image at all." },
+    "tolerance": {
+      "type": "object",
       "properties": {
-        "kind": { "enum": ["figma", "vector-pdf", "raster-pdf", "screenshots"] },
-        "ref": {
-          "type": "string",
-          "description": "Figma file key + node id, or the path of the supplied file."
-        },
-        "artboard": {
-          "type": "object",
-          "description": "Page or frame size in the spec's unit. Never assume A4.",
-          "properties": {
-            "width": { "type": "number" },
-            "height": { "type": "number" },
-            "unit": { "enum": ["px", "pt"] }
-          }
-        },
-        "ceiling": {
-          "type": "array",
-          "description": "Properties this source cannot express, stated at Phase 0.",
-          "items": { "type": "string" }
+        "px": { "type": "number", "default": 0.5 },
+        "textPx": { "type": "number", "default": 1 },
+        "colour": { "type": "number", "default": 2 },
+        "alpha": { "type": "number", "default": 0.02 },
+        "opacity": { "type": "number", "default": 0.01 },
+        "cell": { "type": "number", "default": 16 },
+        "cellMax": { "type": "number", "default": 0.1 },
+        "pixel": { "type": "number", "default": 48 }
+      }
+    },
+    "states": {
+      "type": "object",
+      "description": "Other states or breakpoints, each with its own tree (variant) and node map. Run with --state <name>.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "tree": { "type": "string" },
+          "url": { "type": "string" },
+          "viewport": { "type": "object" },
+          "rootSelector": { "type": "string" },
+          "nodes": { "$ref": "#/$defs/nodes" },
+          "before": { "$ref": "#/$defs/steps" },
+          "masks": { "$ref": "#/$defs/masks" },
+          "tolerance": { "type": "object" }
         }
       }
     },
     "font": {
       "type": "object",
-      "description": "Phase 3 decision. Present whenever the design font is not the shipped font.",
+      "description": "Phase 3: the design font against the shipped one.",
       "properties": {
         "design": { "type": "string" },
         "shipped": { "type": "string" },
-        "strategy": { "enum": ["embedded", "metric-match"] },
+        "strategy": { "enum": ["embedded", "metric-match", "calibrated-tokens"] },
         "note": { "type": "string" }
-      }
-    },
-    "tolerances": {
-      "type": "object",
-      "description": "Phase 4 budget. A delta outside these is a failure, not 'close enough'.",
-      "properties": {
-        "position": { "type": "number", "default": 0.5 },
-        "size": { "type": "number", "default": 0.5 },
-        "spacing": { "type": "number", "default": 0.5 },
-        "radius": { "type": "number", "default": 0.5 },
-        "opacity": { "type": "number", "default": 0.01 },
-        "shadow": { "type": "number", "default": 0.5 },
-        "durationMs": { "type": "number", "default": 10 },
-        "colour": { "const": "exact" },
-        "fontSize": { "const": "exact" }
       }
     },
     "gaps": {
       "type": "array",
-      "description": "Things the design shows that cannot be produced, with the fallback chosen. Reproduced verbatim in the final report.",
+      "description": "What the source cannot express or the page cannot produce, with the fallback. Reproduced in the report.",
       "items": {
         "type": "object",
         "required": ["what", "reason", "fallback"],
-        "properties": {
-          "what": { "type": "string" },
-          "reason": { "type": "string" },
-          "fallback": { "type": "string" }
-        }
-      }
-    },
-    "elements": {
-      "type": "object",
-      "description": "Keyed by a stable element name. Each state of an element gets its own entry under 'states'.",
-      "additionalProperties": {
-        "type": "object",
-        "properties": {
-          "box": {
-            "type": "object",
-            "properties": {
-              "x": { "$ref": "#/$defs/value" },
-              "y": { "$ref": "#/$defs/value" },
-              "width": { "$ref": "#/$defs/value" },
-              "height": { "$ref": "#/$defs/value" }
-            }
-          },
-          "padding": {
-            "type": "object",
-            "properties": {
-              "top": { "$ref": "#/$defs/value" },
-              "right": { "$ref": "#/$defs/value" },
-              "bottom": { "$ref": "#/$defs/value" },
-              "left": { "$ref": "#/$defs/value" }
-            }
-          },
-          "gap": { "$ref": "#/$defs/value" },
-          "radius": {
-            "description": "A single number, or four for per-corner radii.",
-            "oneOf": [
-              { "$ref": "#/$defs/value" },
-              { "type": "array", "items": { "$ref": "#/$defs/value" }, "minItems": 4, "maxItems": 4 }
-            ]
-          },
-          "fill": { "$ref": "#/$defs/colour" },
-          "stroke": {
-            "type": "object",
-            "properties": {
-              "colour": { "$ref": "#/$defs/colour" },
-              "weight": { "$ref": "#/$defs/value" },
-              "align": { "enum": ["inside", "outside", "center"] }
-            }
-          },
-          "opacity": { "$ref": "#/$defs/value" },
-          "shadows": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "type": { "enum": ["drop", "inner"] },
-                "colour": { "$ref": "#/$defs/colour" },
-                "offsetX": { "$ref": "#/$defs/value" },
-                "offsetY": { "$ref": "#/$defs/value" },
-                "blur": { "$ref": "#/$defs/value" },
-                "spread": { "$ref": "#/$defs/value" }
-              }
-            }
-          },
-          "text": {
-            "type": "object",
-            "properties": {
-              "content": { "type": "string" },
-              "family": { "type": "string" },
-              "size": { "$ref": "#/$defs/value" },
-              "weight": { "$ref": "#/$defs/value" },
-              "lineHeight": { "$ref": "#/$defs/value" },
-              "letterSpacing": { "$ref": "#/$defs/value" },
-              "align": { "type": "string" },
-              "transform": { "type": "string" },
-              "colour": { "$ref": "#/$defs/colour" }
-            }
-          },
-          "token": {
-            "type": "string",
-            "description": "Project design token or CSS variable this value maps onto. A raw literal duplicating an existing token is a defect."
-          },
-          "transition": {
-            "type": "object",
-            "properties": {
-              "property": { "type": "string" },
-              "durationMs": { "$ref": "#/$defs/value" },
-              "easing": { "type": "string" }
-            }
-          },
-          "states": {
-            "type": "object",
-            "description": "hover, active, focus, disabled, selected — each holding any of the properties above.",
-            "additionalProperties": { "type": "object" }
-          }
-        }
-      }
-    }
-  },
-  "$defs": {
-    "value": {
-      "type": "object",
-      "required": ["v", "source"],
-      "properties": {
-        "v": { "type": ["number", "string"] },
-        "source": {
-          "enum": ["figma", "measured", "assumed"],
-          "description": "'assumed' values are listed in the final report."
-        },
-        "tolerance": {
-          "type": "number",
-          "description": "Achieved tolerance for a measured value."
-        }
-      }
-    },
-    "colour": {
-      "type": "object",
-      "required": ["v", "source"],
-      "properties": {
-        "v": { "type": "string", "description": "#RRGGBB or rgba()." },
-        "alpha": { "type": "number" },
-        "source": { "enum": ["figma", "measured", "assumed"] }
+        "properties": { "what": { "type": "string" }, "reason": { "type": "string" }, "fallback": { "type": "string" } }
       }
     }
   }

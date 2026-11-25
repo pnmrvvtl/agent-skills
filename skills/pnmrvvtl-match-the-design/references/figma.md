@@ -38,14 +38,15 @@ Always scope to a node id. Fetching a whole file unscoped can be enormous and mo
 
 ## Fetch to disk, distil with a script
 
-Never let the raw response reach the context window.
+Never let the raw response reach the context window. `scripts/extract.mjs` makes both calls, saves the
+rendered PNG and writes the normalized tree:
 
 ```bash
-curl -s -H "X-Figma-Token: $FIGMA_TOKEN" \
-  "https://api.figma.com/v1/files/$KEY/nodes?ids=$NODE" -o "$SCRATCH/figma-raw.json"
+node <skill-dir>/scripts/extract.mjs --from figma-api --key <FILE_KEY> --node 1234:5678 --scale 2   --out design/<feature>.tree.json --image-out <evidence-dir>/<feature>.ref.png
 ```
 
-Then walk the tree in a script and emit only the spec. Read the script's output, not the dump.
+On a low plan tier, save the `/nodes` response and the `/images` PNG once and re-run offline with
+`--input <saved nodes.json> --image <png>`; exploratory calls exhaust the quota quickly.
 
 ## Fields worth pulling per node
 
@@ -98,16 +99,12 @@ coordinates from parent coordinates is guesswork that happens to agree most of t
   carries the variant properties, e.g. `State=Hover, Size=Medium`
 - Emit one spec entry per state
 
-## Reference images for the visual diff
+## Reference images for the pixel stage
 
-```bash
-curl -s -H "X-Figma-Token: $FIGMA_TOKEN" \
-  "https://api.figma.com/v1/images/$KEY?ids=$NODE&format=png&scale=2"
-```
-
-Returns a JSON body with a short-lived S3 URL per node id. Download it to the scratchpad and
-keep it as evidence; it is the backstop for the overlay diff, never the primary source of
-numbers.
+`/v1/images/:key?ids=<id>&format=png&scale=2` renders the node; the extractor downloads it and records
+its scale. `verify.mjs` then renders the page at the same device pixel ratio, so a scale-2 reference
+is compared against a scale-2 screenshot. The PNG is the input of the per-region pixel stage, not the
+source of numbers: numbers come from the node fields above.
 
 ## Colour conversion
 

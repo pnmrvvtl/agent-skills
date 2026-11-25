@@ -1,6 +1,6 @@
 ---
 name: pnmrvvtl-full-cycle-from-design
-description: Run a complete delivery pipeline for a change that comes with a design — clarify before coding, extract a spec from the supplied Figma link, PDF or screenshots, implement natively to the project, then prove both the behaviour and the pixel match. Use when the user asks for the "full cycle" and hands over a design, or says "do it properly, pixel perfect", or invokes this skill by name. Chains pnmrvvtl-inspect-before-implement, then pnmrvvtl-match-the-design, then pnmrvvtl-check-the-docs, then pnmrvvtl-cover-edge-cases, then pnmrvvtl-follow-project-style, then pnmrvvtl-verify-for-real, in that order. With no design supplied, use pnmrvvtl-full-cycle instead.
+description: Run a complete delivery pipeline for a change that comes with a design — clarify before coding, extract a node tree from the supplied design (Figma link, Figma plugin export, PDF or screenshots), implement natively to the project, then prove both the behaviour and the pixel match. Use when the user asks for the "full cycle" and hands over a design, or says "do it properly, pixel perfect", or invokes this skill by name. Chains pnmrvvtl-inspect-before-implement, then pnmrvvtl-match-the-design, then pnmrvvtl-check-the-docs, then pnmrvvtl-cover-edge-cases, then pnmrvvtl-follow-project-style, then pnmrvvtl-verify-for-real, in that order. With no design supplied, use pnmrvvtl-full-cycle instead.
 ---
 
 # Full Cycle From Design
@@ -9,7 +9,7 @@ Six skills, one order, no skipping:
 
 ```
 1. pnmrvvtl-inspect-before-implement   understand and clarify, write no code
-2. pnmrvvtl-match-the-design           extract the design into a committed spec file
+2. pnmrvvtl-match-the-design           extract the design tree, map every node in a committed spec
 3. pnmrvvtl-check-the-docs             pin the versions, replace memory with sourced facts
 4. pnmrvvtl-cover-edge-cases           build the edge-case matrix, decide every row
 5. pnmrvvtl-follow-project-style       implement from the spec, the way this project works
@@ -27,9 +27,10 @@ design to extract from.
 
 ## Why the spec comes before the implementation
 
-`pnmrvvtl-match-the-design` phases 0–4 run here: identify the source and its fidelity ceiling,
-pass the Figma token gate, extract every value into `design/<feature>.spec.json`, resolve the
-font decision, declare the tolerance budget.
+`pnmrvvtl-match-the-design` phases 0–4 run here: identify the source, pick its adapter and state
+its fidelity ceiling, extract `design/<feature>.tree.json` with the skill's `extract.mjs`, map every
+required node in `design/<feature>.spec.json`, resolve the font decision, declare the tolerance
+budget.
 
 That file is the input to phase 3, not its output. Implementing first and measuring afterwards
 is how a wrong page size or a wrong grid survives until the end.
@@ -46,9 +47,11 @@ which states exist, what happens at other breakpoints, what the longest real con
 
 Before any implementation code:
 
-- the spec file is written and the fidelity ceiling is stated
-- the Figma token gate passed, or the user was told it is missing and chose to proceed anyway
-- the font decision is recorded
+- the tree is extracted and the fidelity ceiling is stated
+- the source has an adapter: a valid Figma token, a plugin export, a PDF or images — a Figma link
+  with neither a token nor an export is a stop-and-ask, never a silent fall-back to screenshots
+- the spec maps every required node of every state to be checked, or gives it a written `n/a`
+- the font decision is recorded, as `expect` overrides where the shipped values differ
 - the tolerance budget is in the file
 
 Missing any of these means phase 2 is not finished. Do not start coding.
@@ -99,7 +102,11 @@ Verification runs once, under `pnmrvvtl-verify-for-real`. The spec supplies the 
 the change itself supplies the behavioural ones. Do not run two parallel proof procedures.
 
 - behaviour — timing, state, async, endpoints, calculations
-- appearance — geometry, colour, radius, opacity, shadow against the tolerance budget
+- appearance — `pnmrvvtl-match-the-design`'s `verify.mjs` for every state and breakpoint in the
+  spec: coverage, geometry, style, per-region pixels. Its exit code is the verdict; a non-zero exit
+  means the item is not done, whatever else looks right. Its `MANUAL` rows (effects, strokes,
+  gradients) are compared by hand and reported as such
+- the gate itself is falsified once: break one mapped element on purpose and see it fail
 - states — hover, active, focus, disabled, driven for real, one assertion set each
 - transitions — declared values *and* an observed series showing it actually animates
 - edge cases — every matrix row has a proof, or is listed as not covered with the reason
@@ -160,10 +167,11 @@ One report covering all six phases:
   express natively
 - the edge-case matrix, with each row's proof or "not covered"
 - what was implemented, and which project primitives it reused
-- the delta table: expected, actual, delta, in budget or not
+- the gate's verdict line and table per state, every `n/a`, `skip`, `expect` and mask it printed with
+  its reason, and `compare.png` per state
 - what is proven, at what tolerance, and what is **not** covered
 - the commit the last real-runtime proof ran on, and that nothing in production code changed after it
 - anything intentionally left out, with the reason
 
-Keep `design/<feature>.spec.json`. Delete the harness. Evidence stays outside the repo, cited by
+Keep `design/<feature>.tree.json` and `design/<feature>.spec.json`. Delete the harness. Evidence stays outside the repo, cited by
 absolute path.

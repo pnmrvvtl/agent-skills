@@ -1,180 +1,175 @@
 ---
 name: pnmrvvtl-match-the-design
-description: Implement a supplied design exactly and prove the match. Use when the user hands over a Figma link, a design PDF, or design screenshots and expects the result to match pixel for pixel — sizes, padding, margins, corner radii, colours, opacity, shadows, and for web also hover/active/disabled states and transition timing. Triggers on "pixel perfect", "точно як в дизайні", "match the design", "implement this Figma", "here is the design", or any request to build UI from a supplied visual. Extracts a machine-readable spec from the source before any code is written, then diffs the built result against that spec and reports every delta.
+description: Implement a supplied design exactly and prove the match with a mechanical gate, whatever form the design arrives in — a Figma link (REST API with a token), a Figma plugin export (JSON with node trees and embedded PNGs), a vector or raster PDF, or plain screenshots. Use when the user hands over a design and expects pixel-perfect results — sizes, padding, margins, corner radii, colours, opacity, text metrics, icons, and for web also hover/active/disabled states and transitions. Triggers on "pixel perfect", "PP", "точно як в дизайні", "match the design", "implement this Figma", "here is the design", or any request to build UI from a supplied visual. Normalizes the source into one node tree, maps every node that puts ink on the screen to a page element, and lets a script decide pass or fail on coverage, geometry, style and per-region pixels.
 ---
 
 # Match The Design
 
-Eyeballing a design is how "almost right" ships. The gap is never in the comparison at the
-end — it is that nobody wrote down what the design actually *says* before coding started.
+Two ways "pixel perfect" fails, and both have happened:
 
-So this skill inverts the usual order: **extract a spec, then build against it, then diff.**
-The spec is a file, not a memory. The same file feeds the implementation and the verification,
-so the two cannot drift apart.
+1. **The implementer picks what to compare.** A 32px button box was measured and passed; the 20x22
+   icon inside it was never on the list and shipped at 17.7x19.6. The list of things to compare must
+   come from the design, not from whoever wrote the code.
+2. **The verdict is prose.** "Matches the design" was written while a delta was outside budget. The
+   verdict must be an exit code that a script produced.
+
+So the method is the same for every source: **normalize the design into a node tree, map every node
+that puts ink on the screen to an element, and let `scripts/verify.mjs` decide.** Only the first step
+depends on how the design was delivered.
 
 ## Non-negotiables
 
-- **No implementation code before the spec file exists.** Not "I'll measure as I go". The spec
-  comes first, whole.
-- **Never claim more fidelity than the source can carry.** A screenshot cannot tell you opacity,
-  shadow parameters, hover states or easing curves. Say so out loud at Phase 0.
-- **Never invent a value the source does not contain.** If the design shows a field the data or
-  the source does not have, render the fallback and record it as a gap. Do not guess a number
-  because it "looks about right".
-- **Never load a raw Figma node dump into context.** Fetch to a file, filter with a script, read
-  only the distilled spec. One frame can be megabytes of JSON.
-- **A tolerance budget is mandatory.** Without declared limits "pixel perfect" cannot be
-  falsified, and an unfalsifiable claim is not verification.
-- **The spec is committed.** It is a fixture and a regression test, not scratch work.
+- **No implementation code before the tree and the spec exist.**
+- **Coverage is total.** Every required node in the tree (anything that paints: text, vectors, shapes,
+  anything with a fill, stroke or effect) is mapped to an element or carries a written `n/a` reason.
+  The gate fails on an unmapped node. Pure wrappers may be mapped but are not required.
+- **Pixels are compared per region, never as one global percentage.** A wrong 20px icon is 0.14% of a
+  modal and passes any global budget.
+- **The report's verdict is the gate's exit code.** Never write "matches", "pixel perfect" or "done"
+  while `verify.mjs` exits non-zero. Every `n/a`, `skip`, `expect` override and mask carries a reason,
+  and the report prints all of them.
+- **Never claim more fidelity than the source carries** (Phase 0), and never invent a value the source
+  does not contain.
+- **Never load a raw design dump or a large image into context.** Scripts read them; you read the
+  scripts' output and the small comparison images.
+- **The tree and the spec are committed** next to the feature as `design/<feature>.tree.json` and
+  `design/<feature>.spec.json`. Reference PNGs, screenshots and diffs are evidence, kept outside the repo.
 
-## Phase 0 — Identify the source and state the ceiling
+## Phase 0 — Identify the source, pick the adapter, state the ceiling
 
-Classify what you were handed and say what it can and cannot give.
-
-| Property | Figma API | Vector PDF | Raster PDF / screenshots |
+| Source | How to recognise it | Adapter | What it cannot give |
 |---|---|---|---|
-| Position, size | exact | exact | measured, ±0.3px |
-| Padding, gaps | exact (auto-layout) | inferred from positions | inferred from positions |
-| Corner radius | exact (per corner) | from path control points | ±0.5px from corner profile |
-| Colours | exact | exact | near-exact; JPEG noise at edges |
-| **Opacity** | exact | exact | **impossible** — only the composite is visible |
-| **Shadows** | exact | sometimes | **not recoverable** |
-| Font family / size / weight / line-height | exact | exact | inferred by width matching only |
-| **Hover / active / disabled** | yes, if built as variants | no | no |
-| **Transitions: type, easing, duration** | yes, from prototype interactions | no | no |
+| Figma link, token valid | `figma.com/design/<key>/...?node-id=` and `FIGMA_TOKEN` answers 200 on `/v1/me` | `extract.mjs --from figma-api --key <key> --node <id>` ([figma.md](references/figma.md)) | nothing structural; prototype transitions only if built |
+| Figma plugin export | JSON files whose `frames[]` hold Figma-shaped nodes (`absoluteBoundingBox`, `fills`, ...) and base64 `png` on some frames and component sets | `extract.mjs --from figma-export --input <dir> --node <id>` ([figma-export.md](references/figma-export.md)) | pixels only at the export scale, cropped from the nearest exported ancestor; transitions only if `reactions` were exported |
+| Vector PDF | text is selectable, fonts are embedded | render the page to PNG at a known DPI, then `--from raster`; take exact numbers from the PDF's text and paths ([measuring-rasters.md](references/measuring-rasters.md)) | states, transitions |
+| Raster PDF, screenshots | one image per page, no fonts | `extract.mjs --from raster --image <png> --scale <n>`, nodes added by measurement ([measuring-rasters.md](references/measuring-rasters.md)) | opacity, shadows, states, exact font values; coverage rests on the per-region pixels |
 
-To tell a vector PDF from a raster one: if every page is a single full-page image and the page
-reports no embedded fonts, it is a raster mock — treat it as screenshots.
+State the ceiling in one sentence before going on. A Figma link with no usable token, and nothing
+else supplied: **stop and ask** for a token or a plugin export (setup in [figma.md](references/figma.md)).
+Do not quietly degrade to screenshots of the frame.
 
-State the ceiling in one sentence before proceeding. If the request is "pixel perfect" and the
-source is screenshots, name the properties that will be unverifiable and ask whether a Figma
-link exists. Do not quietly do half the job.
+## Phase 1 — Extract the tree
 
-## Phase 1 — Figma access gate
+Run the adapter from the scripts folder of this skill. It writes:
 
-**Only when the source is a Figma link.** This is a hard stop, not a warning.
+- `design/<feature>.tree.json` — the root and every node under it: box relative to the root, fill,
+  radii, opacity, strokes, effects, text metrics, visibility, and `required`
+- the reference PNG of the root at a known scale (`--image-out`, outside the repo)
 
-1. Check for the token yourself first — do not ask before checking. `FIGMA_TOKEN` in the
-   environment, then `~/.claude/settings.json`, then the project `.env`.
-2. If present, validate it with one cheap call:
-   ```bash
-   curl -s -o /dev/null -w '%{http_code}' \
-     -H "X-Figma-Token: $FIGMA_TOKEN" https://api.figma.com/v1/me
-   ```
-   `200` = usable. `403` = expired, revoked, or wrong scope.
-3. **Missing or invalid → stop and tell the user**, with the setup instructions in
-   `references/figma.md`. Do not silently fall back to screenshots of the Figma frame, and do
-   not proceed hoping it works.
-4. If the user already said the token is in the environment, skip the instructions — still run
-   the validation and report the result.
+It prints the root, the node count and how many nodes are required. Read that summary, not the tree.
+For a component with states, extract one tree per variant (hover, pressed, disabled, empty, with data).
+Pick the variant that matches the data the page will show: a design count of 568 and a page with no
+likes yet are different variants, not a delta.
 
-## Phase 2 — Extract the spec
+## Phase 2 — Write the spec
 
-Output is one file: `design/<feature>.spec.json` (see `assets/spec.schema.json`). It holds every
-element the implementation must hit, keyed by a stable name, each value carrying a `source`
-field recording where it came from: `figma`, `measured`, or `assumed`.
+`design/<feature>.spec.json` ([spec.schema.json](assets/spec.schema.json)) maps the tree onto the page:
 
-- **Figma** → `references/figma.md`. Fetch to disk, distil with a script, never read the raw
-  dump. Pull geometry, radii, fills, strokes, effects, node and fill opacity, auto-layout
-  padding and spacing, text style, prototype interactions, and the sibling variants of a
-  component set for hover / pressed / disabled.
-- **Vector PDF** → extract per-character positions, fonts and sizes; take rectangle geometry
-  and corner curves from the paths. Read the page size from the page rect — never assume A4.
-- **Raster PDF or screenshots** → `references/measuring-rasters.md`. Establish scale first;
-  without a known reference dimension absolute sizes are unobtainable, so ask for one.
+```json
+{
+  "tree": "button.tree.json",
+  "url": "http://localhost:3000/<page>",
+  "viewport": { "width": 1440, "height": 900 },
+  "rootSelector": "button[aria-label=\"Like\"]",
+  "nodes": {
+    "<rect-node-id>": ":scope",
+    "<icon-node-id>": "svg path",
+    "<count-node-id>": {
+      "selector": "[class*=count]",
+      "skip": { "geometry": "the count is live data, its width follows the digits" },
+      "expect": { "fontWeight": { "v": 350, "reason": "the design weight mapped onto the project's font-weight token" } }
+    },
+    "<decoration-node-id>": { "na": "hidden behind the sticky header in this layout" }
+  },
+  "states": { "hover": { "tree": "button.hover.tree.json", "before": [{ "hover": "button[aria-label=\"Like\"]" }], "nodes": {} } }
+}
+```
+
+Selectors resolve inside the root (`:scope` is the root itself; `document:<css>` reaches outside it, for
+portals). Map an icon to its `path` or shape element, not to the `svg` box: the vector node's box is the
+ink. The spec also holds the tolerance budget, the font decision and the gaps (Phases 3-4).
 
 ## Phase 3 — Resolve what cannot be matched, explicitly
 
-Two decisions go into the spec before coding, not into the final report as a surprise:
+**Font.** If the design's family or weight cannot ship as drawn (a custom face, a calibrated weight
+scale), record the shipped value as an `expect` override with its reason, per text role. Text regions
+are masked from the pixel stage by default because rasterisers differ; text is held by its metrics
+(size, line height, letter spacing, weight, box) instead. Prefer the project's tokens over a measured
+number: the override names the token.
 
-**Font.** If the design's family cannot be shipped, pixel-exact is impossible by definition.
-Either embed it — state the bundle cost — or match metrics: choose the size that makes rendered
-label widths equal the design's, and record both the design value and the substitute.
-
-**Properties the source cannot express.** List them, with the fallback chosen for each and why.
-This list is reproduced verbatim in the final report; it is the honest boundary of the claim.
+**Properties the source cannot express.** List them in `gaps`, each with its fallback and why. They
+go into the report verbatim.
 
 ## Phase 4 — Tolerance budget
 
-Write it into the spec. Defaults, tighten on request:
+Defaults, set in the spec's `tolerance` and tightened on request:
 
-| Property | Tolerance |
-|---|---|
-| Position, size, padding, gap | ±0.5px |
-| Corner radius | ±0.5px |
-| Colour | exact after normalising to `rgb()` / `rgba()` |
-| Opacity | ±0.01 |
-| Shadow offset / blur / spread | ±0.5px, colour exact |
-| Font size, weight, line-height | exact |
-| Transition duration | ±10ms, easing function exact |
+| Key | Default | Meaning |
+|---|---|---|
+| `px` | 0.5 | position and size of a mapped node, radii |
+| `textPx` | 1 | text boxes (rasteriser and font metrics) |
+| `colour` | 2 | per channel, 0-255 |
+| `opacity` | 0.01 | |
+| `cell` | 16 | pixel region size, CSS px |
+| `cellMax` | 0.1 | share of differing pixels a region may have |
+| `pixel` | 48 | per-channel difference that makes a pixel differ |
 
-Anything outside budget is a failure, not "close enough".
+Anything outside budget is a failure, not "close enough". Never raise a budget to get a pass; record a
+named `expect`, `skip` or mask with its measured number and cause instead.
 
-## Phase 5 — Implement from the spec
+## Phase 5 — Implement from the tree
 
-Read values from the spec file. Do not retype numbers off the design image. Where the project
-has design tokens or CSS variables, map spec values onto them and record the mapping — a raw hex
-that duplicates an existing token is a defect even when it renders correctly.
+Read values from the tree, not off the picture. Where the project has design tokens, map tree values
+onto them; a raw literal that duplicates an existing token is a defect even when it renders right.
 
 ## Phase 6 — Prove the match
 
-Run this as a `pnmrvvtl-verify-for-real` probe: the spec supplies the falsifiable claims, that
-skill supplies the protocol. Do not invent a second, parallel proof procedure.
+Run the gate from the project root, so Playwright resolves from the project:
 
-- **Web / DOM** → `references/web-parity.md`. Assert computed values, not only pixels; drive
-  every state listed in the spec for real; confirm transitions actually animate.
-- **Rendered document (PDF, canvas, image)** → render at the reference DPI and compare measured
-  geometry element by element with the Phase 2 techniques. Hover states and transitions do not
-  exist in this medium — say so rather than marking them passed.
+```bash
+node <skill-dir>/scripts/verify.mjs --spec design/<feature>.spec.json --out <evidence-dir>/<feature>
+node <skill-dir>/scripts/verify.mjs --spec design/<feature>.spec.json --state hover --out <evidence-dir>/<feature>-hover
+```
 
-Always compare across more than the happy case: longest realistic content, empty values, every
-state in the spec. A design matched only on the mock's sample data is matched by accident.
+It checks, in order: **coverage**, **geometry** (each mapped node's box relative to the root),
+**style** (fill, radius, opacity, font size, weight, line height, letter spacing) and **pixels** (the
+root against the reference, aligned within one CSS pixel, compared per region with text masked). It
+writes `report.md`, `results.json`, `compare.png` (design | page | differences), and exits 1 on any
+failure. Effects, strokes and non-solid fills are listed as `MANUAL` rows: compare them by hand
+([web-parity.md](references/web-parity.md)) and say you did.
+
+Iterate until it exits 0, then:
+
+- run every state and every breakpoint the spec names — a design matched in one state is matched in one
+  state
+- run it once against a deliberately broken page (shrink one icon with a `before` style step) and see it
+  fail, so the pass means something
+- for transitions and the states a static screenshot cannot hold, follow
+  [web-parity.md](references/web-parity.md) under `pnmrvvtl-verify-for-real`
+
+For a rendered document rather than a page (PDF, canvas, image), render at the reference scale and use
+`--from raster` on the output for both sides of the comparison.
 
 ## Phase 7 — Report
 
-A table, one row per element per property: expected, actual, delta, in budget or not. Then:
-
-- what is proven, at what tolerance
-- what could not be verified and why — the Phase 3 list
-- every value whose `source` is `assumed`
-
-Keep `design/<feature>.spec.json` in the repo.
+Paste the gate's verdict line and its table (failures first). Then list, from the same report: every
+`N/A`, `SKIP`, `expect` override and mask with its reason, every `MANUAL` row with what you compared by
+hand, the Phase 0 ceiling and the `gaps`. Attach `compare.png` for each state. If the verdict is FAIL,
+the item is not done; say so in the first line.
 
 ## Workspace hygiene
 
-Three kinds of files, three fates. Decide which one you are creating *before* you create it.
-
 | Kind | Example | Fate |
 |---|---|---|
-| Deliverable | `design/<feature>.spec.json` | stays in the repo, committed |
-| Harness | render and measure scripts, probes | deleted before reporting |
-| Evidence | overlay diffs, rendered PNGs, raw API dumps | kept, but **outside** the repo |
+| Deliverable | `design/<feature>.tree.json`, `design/<feature>.spec.json` | committed |
+| Harness | ad-hoc probes you wrote | deleted before reporting |
+| Evidence | reference PNGs, `compare.png`, `report.md` from the gate | kept **outside** the repo, cited by absolute path |
 
-**Default: create nothing inside the repository.** Harness scripts and artefacts go in the
-session scratchpad. Evidence has to survive the report — the user must be able to open the
-overlay after reading the delta table — so it lives outside the tree and the report cites
-absolute paths to it.
-
-**The only exception:** the project's tooling cannot resolve a file from outside the root.
-Vite's dev-server fs allow-list, Playwright's `testDir`, Jest `roots`, `tsconfig` `include` will
-refuse an external path. Only then put the script in the repo, and:
-
-- one dedicated directory, clearly named for what it is (`.design-probe/`)
-- do **not** add it to `.gitignore` — an ignored file is a file you can forget, and editing
-  `.gitignore` is itself a repo change you would have to revert. Let it show in `git status`;
-  visible is safer than hidden
-- record every path you create as you go
-
-**Before reporting the task complete:** delete every recorded path, run `git status --short`,
-and confirm nothing remains except intended changes. If something unexpected is there, say so
-rather than guessing whether it is yours.
-
-Never `git clean`, never `rm -rf` a directory you did not create, never delete a file you did
-not put there. If a file you create collides with an existing one, stop and ask. Clean up on
-the failure path too — an abandoned run leaves the tree exactly as it found it.
+The bundled scripts stay in the skill; never copy them into the project. If the project's tooling
+cannot reach an external path, put a probe in one dedicated directory (`.design-probe/`), do not
+gitignore it, and delete it before reporting. Never `git clean`, never delete a file you did not create.
 
 ## When not to run this
 
-If the design was handed over as loose reference and the ask is for something "in this style",
-this is overkill — say so and build to the project's existing design system instead. This skill
-is for when the delivered visual is the contract.
+If the design was handed over as loose reference ("in this style"), say so and build to the project's
+design system instead. This skill is for when the delivered visual is the contract.
